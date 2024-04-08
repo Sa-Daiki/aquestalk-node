@@ -1,0 +1,10 @@
+version: "3"
+services:
+  aquestalk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./aquestalk:/app/aquestalk
+    stdin_open: true
+    tty: true
