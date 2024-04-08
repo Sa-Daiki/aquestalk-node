@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    platform: linux/amd64
     volumes:
       - ./aquestalk:/app/aquestalk
     stdin_open: true
