@@ -1,12 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <dlfcn.h>
+#include "AqKanji2Koe.h"
 #include "AquesTalk.h"
 
 #define MAX_INPUT_LENGTH 1024
+#define NSTR 4096
+
+using namespace std;
 
 int main(int argc, char **argv)
 {
+    int iret;
     int size;
     char str[MAX_INPUT_LENGTH];
     const char *voice_type;
@@ -14,14 +19,45 @@ int main(int argc, char **argv)
     unsigned char* (*synthe_func)(const char*, int, int*);
     void (*free_wave_func)(unsigned char*);
 
+    char kanji[NSTR]; // 入力される漢字かな混じり文
+    char koe[NSTR];   // 変換後の音声記号列を格納するバッファ
+    void *hAqKanji2Koe;
+    const char *pathDic = "/usr/local/lib/aqkanji2koe/aq_dic";
+
+    // AqKanji2Koeライブラリの初期化
+    hAqKanji2Koe = AqKanji2Koe_Create(pathDic, &iret);
+    if (hAqKanji2Koe == NULL) {
+        fprintf(stderr, "辞書の初期化に失敗しました: %d\n", iret);
+        return 1;
+    }
+
+    // 標準入力からテキストを読み込み
+    printf("漢字かな混じり文を入力してください: ");
+    if (fgets(kanji, NSTR, stdin) == NULL) {
+        fprintf(stderr, "入力の読み込みに失敗しました\n");
+        AqKanji2Koe_Release(hAqKanji2Koe);
+        return 1;
+    }
+
+    // テキストを音声記号列に変換
+    iret = AqKanji2Koe_Convert(hAqKanji2Koe, kanji, koe, NSTR);
+    if (iret != 0) {
+        fprintf(stderr, "テキストの変換に失敗しました: %d\n", iret);
+    } else {
+        printf("音声記号列: %s\n", koe);
+    }
+
+    // リソースの解放
+    AqKanji2Koe_Release(hAqKanji2Koe);
+
     // 音声記号列を入力
-    if (fgets(str, MAX_INPUT_LENGTH, stdin) == NULL) {
+    if (fgets(koe, MAX_INPUT_LENGTH, stdin) == NULL) {
         fprintf(stderr, "Failed to read input.\n");
         return 1;
     }
 
     // 入力の長さをチェック
-    if (strlen(str) >= MAX_INPUT_LENGTH - 1) {
+    if (strlen(koe) >= MAX_INPUT_LENGTH - 1) {
         fprintf(stderr, "Input is too long. Maximum length is %d.\n", MAX_INPUT_LENGTH - 1);
         return 1;
     }
@@ -59,7 +95,7 @@ int main(int argc, char **argv)
     }
 
     // 音声合成
-    unsigned char *wav = synthe_func(str, 100, &size);
+    unsigned char *wav = synthe_func(koe, 100, &size);
     if (wav == NULL) {
         fprintf(stderr, "ERR:%d\n", size);
         dlclose(handle);
