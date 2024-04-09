@@ -1,44 +1,77 @@
-/**********************************************************************
-	SampleTalk.c - AquesTalk1 for Linux 規則音声合成 サンプルプログラム
-
-	標準入力から音声記号列を１行読み込み、
-	標準出力に音声波形(.wavフォーマット）を出力
-
-	COPYRIGHT (C) 2007 AQUEST CORP.
-
-	使用方法は、readme.txt を参照ください。
-	
-	2007/01/08	N.Yamazaki	Creation
-**********************************************************************/
 #include <stdio.h>
+#include <string.h>
+#include <dlfcn.h>
 #include "AquesTalk.h"
 
+#define MAX_INPUT_LENGTH 1024
 
-int main(int ac, char **av)
+int main(int argc, char **argv)
 {
-	int 	size;
-	int 	iret;
-	char	str[1024];
+    int size;
+    char str[MAX_INPUT_LENGTH];
+    const char *voice_type;
+    void *handle;
+    unsigned char* (*synthe_func)(const char*, int, int*);
+    void (*free_wave_func)(unsigned char*);
 
-	// 音声記号列を入力
-	if(fgets(str, 1024-1, stdin)==0) return 0;
+    // 音声記号列を入力
+    if (fgets(str, MAX_INPUT_LENGTH, stdin) == NULL) {
+        fprintf(stderr, "Failed to read input.\n");
+        return 1;
+    }
 
-	// 音声合成
-	//	unsigned char *wav = AquesTalk_Synthe(str, 100, &size);	//SJIS
-	//	unsigned char *wav = AquesTalk_Synthe_Euc(str, 100, &size);
-		unsigned char *wav = AquesTalk_Synthe_Utf8(str, 100, &size);
-	//	unsigned char *wav = AquesTalk_Synthe_Utf16(wstr, 100, &size);	// unsigned short *wstr
-	//	unsigned char *wav = AquesTalk_Synthe_Roman(str, 100, &size);
-	if(wav==0){
-		fprintf(stderr, "ERR:%d\n",size);
-		return -1;
-	}
+    // 入力の長さをチェック
+    if (strlen(str) >= MAX_INPUT_LENGTH - 1) {
+        fprintf(stderr, "Input is too long. Maximum length is %d.\n", MAX_INPUT_LENGTH - 1);
+        return 1;
+    }
 
-	// 音声データ(wavフォーマット)の出力
-	fwrite(wav, 1, size, stdout);
+    // 音声タイプを取得
+    if (argc > 1) {
+        voice_type = argv[1];
+    } else {
+        voice_type = "f1";
+    }
 
-	// 音声データバッファの開放
-	AquesTalk_FreeWave(wav);
-	
-	return 0;
+    // 音声タイプに基づいてライブラリをロード
+    char lib_path[256];
+    snprintf(lib_path, sizeof(lib_path), "/usr/local/lib/aquestalk/lib64/%s/libAquesTalk.so", voice_type);
+    handle = dlopen(lib_path, RTLD_LAZY);
+    if (handle == NULL) {
+        fprintf(stderr, "Failed to load library: %s\n", dlerror());
+        return 1;
+    }
+
+    // 音声合成関数を取得
+    *(void **)(&synthe_func) = dlsym(handle, "AquesTalk_Synthe_Utf8");
+    if (synthe_func == NULL) {
+        fprintf(stderr, "Failed to find symbol: %s\n", dlerror());
+        dlclose(handle);
+        return 1;
+    }
+
+    // メモリ解放関数を取得
+    *(void **)(&free_wave_func) = dlsym(handle, "AquesTalk_FreeWave");
+    if (free_wave_func == NULL) {
+        fprintf(stderr, "Failed to find symbol: %s\n", dlerror());
+        dlclose(handle);
+        return 1;
+    }
+
+    // 音声合成
+    unsigned char *wav = synthe_func(str, 100, &size);
+    if (wav == NULL) {
+        fprintf(stderr, "ERR:%d\n", size);
+        dlclose(handle);
+        return 1;
+    }
+
+    // 音声データの出力
+    fwrite(wav, 1, size, stdout);
+
+    // メモリとライブラリのハンドルを解放
+    free_wave_func(wav);
+    dlclose(handle);
+
+    return 0;
 }

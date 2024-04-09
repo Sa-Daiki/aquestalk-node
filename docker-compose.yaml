@@ -9,3 +9,4 @@ services:
       - ./aquestalk:/app/aquestalk
     stdin_open: true
     tty: true
+    entrypoint: ["./Main"]
