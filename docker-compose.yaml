@@ -1,21 +1,17 @@
 # version: "3"
 # services:
-#   aquestalk:
+#   aqkanji2koe:
 #     build:
 #       context: .
 #       dockerfile: Dockerfile
-#     platform: linux/amd64
-#     volumes:
-#       - .:/app
 #     stdin_open: true
 #     tty: true
-#     entrypoint: /bin/bash -c "export LD_LIBRARY_PATH=/usr/local/lib:$$LD_LIBRARY_PATH && ./Main"
 
 version: "3"
 services:
-  aqkanji2koe:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    stdin_open: true
-    tty: true
+    ports:
+      - "8080:8080"
